@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <script src="jspm_packages/system.js"></script>
+    <style>
+        .sections {
+            width: 50%;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+<div ng-controller="AppController" ng-cloak>
+    <div ng-if="data" class="sections">
+        <div ng-repeat="section in sections">
+            <h2>{{section.id}}</h2>
+
+            <div  ng-if="currentSection.id===section.id">
+                <div>
+                    current item: {{data.current.title}}
+                </div>
+                <div ng-if="data.next">
+                    next item: {{data.next.title}}
+                </div>
+                <button ng-click="nextItem()">Next Item</button>
+                <button ng-click="nextSection()">Next Section</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src='config.js'></script>
+
+<script>
+    System.import('main');
+</script>
+</body>
+</html>
