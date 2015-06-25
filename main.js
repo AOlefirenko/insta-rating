@@ -9,6 +9,8 @@ angular.element(document).ready(function () {
 });
 
 
+
+
 app.controller('AppController', ($scope)=> {
 
     function getItems(count) {
@@ -28,18 +30,17 @@ app.controller('AppController', ($scope)=> {
         map((x)=> {
             return {
                 id: x,
-                items: getItems(x.length),
-                currentItem:null,
-                onNextItem:()=>{
-
-                },
-                onNextSection:()=>{
-
-                }
+                items: getItems(x.length).pairwise().
+                    map((x) => {
+                        return {
+                            current: x[0], next: x[1]
+                        }
+                    }).skipWhile((x)=> currentItemId && x.current.id !== currentItemId),
+                currentItemId: null
             }
         });
 
-    sectionsObserver.toArray().subscribe((x)=>{
+    sectionsObserver.toArray().subscribe((x)=> {
         $scope.sections = x;
     })
 
@@ -62,20 +63,18 @@ app.controller('AppController', ($scope)=> {
         subscribe(setData);
 
     publishedSections.take(1).
-        subscribe((x)=>{
+        subscribe((x)=> {
             $scope.currentSection = x;
-            console.log('currentSection',x);
         });
 
     Rx.Observable.zip(published.skip(1), onNext, (s1, s2)=> s1).subscribe(setData)
 
-    Rx.Observable.zip(sectionsObserver.skip(1), onNextSection, (s1, s2)=> s1).subscribe((x)=>{
+    Rx.Observable.zip(publishedSections.skip(1), onNextSection, (s1, s2)=> s1).subscribe((x)=> {
         $scope.currentSection = x;
     })
 
     published.connect();
     publishedSections.connect();
-
 
 
     function setData(x) {

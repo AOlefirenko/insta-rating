@@ -6,7 +6,7 @@
     <script src="jspm_packages/system.js"></script>
     <style>
         .sections {
-            width: 50%;
+            padding: 0 100px;
             display: flex;
             flex-direction: row;
             justify-content: space-between;
@@ -14,7 +14,7 @@
         .helper{
             background-color: rgb(75, 114, 182);
             padding: 15px;
-            color: #fff;
+            color: #fff !important;
         }
         .sections>div{
             padding: 15px;
@@ -26,33 +26,39 @@
         .sections>div:last-child{
             border-right: 2px solid;
         }
+        a:-webkit-any-link {
+            color: #fff;
+            text-decoration: underline;
+            cursor: auto;
+        }
     </style>
 </head>
 <body>
 <div ng-controller="AppController" ng-cloak>
-    <div ng-if="data" class="sections">
+    <div class="sections">
         <div ng-repeat="section in sections">
-            <h2>{{section.id}}</h2>
+            <h2>{{section.title}}</h2>
 
-            <div class="helper" ng-if="currentSection.id===section.id">
+            <div class="helper" ng-if="guideHelpers.currentSectionId === section.id">
                 <div>
-                    current item: {{data.current.title}}
+                    current item: {{section.values.current.title}}
                 </div>
-                <div ng-if="data.next">
-                    next item: {{data.next.title}}
+                <div ng-if="section.values.next.title">
+                    next item: {{section.values.next.title}}
                 </div>
-                <button ng-click="nextItem()">Next Item</button>
-                <button ng-click="nextSection()">Next Section</button>
+                <a href="" ng-click="section.rollUp()">Next Item</A>
+                <a href="" ng-click="nextSection()" ng-if="section.nextBoxTitle">GO TO {{section.nextBoxTitle}}</A>
             </div>
         </div>
     </div>
 
+    <button ng-click="addSection()">add Section</button>
 </div>
 
 <script src='config.js'></script>
 
 <script>
-    System.import('main');
+    System.import('main2');
 </script>
 </body>
 </html>
