@@ -57,18 +57,16 @@ class RolledHelper {
         return groups.skipWhile((x)=> position && x.current.id !== position);
     }
 
-    init(groups, isRecursiveCall) {
+    setCurrentValues(x) {
+        this.values = x;
+        this.positionObservable.onNext({id: x.current.id, boxId: this.id});
+    }
 
-        var startPosition = !isRecursiveCall && this.currentItemId;
-        var publishedGroups = this.setStartPosition(groups, startPosition).publish();
+    setInitValues(observable) {
+        observable.take(1).subscribe(this.setCurrentValues.bind(this));
+    }
 
-        publishedGroups.take(1).
-            subscribe((x)=> {
-                this.values = x;
-                console.log('publishedGroups', x);
-                this.positionObservable.onNext({id: x.current.id, boxId: this.id});
-            });
-
+    initRolling(observable) {
         var self = this;
         var onRollUp = Rx.Observable.create(function (observer) {
             self.rollUp = observer.onNext.bind(observer);
@@ -76,27 +74,33 @@ class RolledHelper {
                 console.log('disposed');
             };
         })
-        var obs = Rx.Observable.zip(publishedGroups.skip(1), onRollUp, (s1, s2)=> s1);
-        obs.subscribe((x)=> {
-                this.values = x;
-                this.positionObservable.onNext({id: x.current.id, boxId: this.id});
-            },
+        var obs = Rx.Observable.zip(observable.skip(1), onRollUp, (s1, s2)=> s1);
+
+        obs.subscribe(this.setCurrentValues.bind(this),
             angular.noop,
             (x)=> {
                 onRollUp = null;
                 obs = null;
-                publishedGroups = null;
+                observable = null;
                 self.init(groups, true)
             })
+    }
+
+    init(groups, isRecursiveCall) {
+
+        var startPosition = !isRecursiveCall && this.currentItemId;
+
+        var publishedGroups = this.setStartPosition(groups, startPosition).publish();
+
+        this.setInitValues(publishedGroups);
+        this.initRolling(publishedGroups);
+
         publishedGroups.connect();
     }
 
-    rollUp() {
-
-    }
 }
 
-class GuideHelpers {
+class RolledHelperGroup {
     constructor(sections, onNext, stickies, state) {
         this.sections = this.makePairs(sections).
             map(this.transformToHelper.bind(this));
@@ -188,6 +192,7 @@ app.controller('AppController', ($scope, rx, $window)=> {
     var sections = ['first', 'second', 'third'];
     var newSections = ['sixth', 'fifth', 'fourth'];
     var onNextBoxObservable = $scope.$createObservableFunction('nextSection');
+
     var stickiesDict = {
         'first': getItems(9),
         'second': getItems(5),
@@ -211,16 +216,16 @@ app.controller('AppController', ($scope, rx, $window)=> {
                 currentItemId: 1
             }
         },
-        setCurrentItem:function(boxId,id){
-            if(!this.boxes[boxId])this.boxes[boxId] ={};
+        setCurrentItem: function (boxId, id) {
+            if (!this.boxes[boxId])this.boxes[boxId] = {};
             this.boxes[boxId].currentItemId = id;
         },
-        getCurrentItem:function(boxId){
-            if(!this.boxes[boxId])return;
+        getCurrentItem: function (boxId) {
+            if (!this.boxes[boxId])return;
             return this.boxes[boxId].currentItemId
         },
-        resetBox: function () {
-
+        setDirty: function (boxId) {
+            this.boxes[boxId].isDirty = true;
         }
     };
 
@@ -232,21 +237,17 @@ app.controller('AppController', ($scope, rx, $window)=> {
 
         if ($scope.guideHelpers) $scope.guideHelpers.dispose();
 
-        var guideHelpers = new GuideHelpers(boxesObservable, onNextBoxObservable, stickiesDict, rolledGuideState);
+        var guideHelpers = new RolledHelperGroup(boxesObservable, onNextBoxObservable, stickiesDict, rolledGuideState);
         $scope.guideHelpers = guideHelpers;
 
         $scope.sections = guideHelpers.allBoxes;
 
-
         guideHelpers.onNext((x)=> {
-            console.log('SAVE', 'position changed to', x.current);
-            console.log('SAVE', 'box completed', x.completed);
             rolledGuideState.currentBoxId = x.current;
+            rolledGuideState.setDirty(x.completed);
         })
         guideHelpers.onRolledUp((x)=> {
-            console.log('SAVE', 'sticky rolled up', x.id);
-            console.log('SAVE', 'box', x.boxId);
-            rolledGuideState.setCurrentItem(x.boxId,x.id);
+            rolledGuideState.setCurrentItem(x.boxId, x.id);
         })
     }
 
