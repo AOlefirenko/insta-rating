@@ -11,21 +11,25 @@
             flex-direction: row;
             justify-content: space-between;
         }
-        .helper{
+
+        .helper {
             background-color: rgb(75, 114, 182);
             padding: 15px;
             color: #fff !important;
         }
-        .sections>div{
+
+        .sections > div {
             padding: 15px;
             border-left: 2px solid;
             border-top: 2px solid;
             border-bottom: 2px solid;
-            flex:1;
+            flex: 1;
         }
-        .sections>div:last-child{
+
+        .sections > div:last-child {
             border-right: 2px solid;
         }
+
         a:-webkit-any-link {
             color: #fff;
             text-decoration: underline;
@@ -38,7 +42,6 @@
     <div class="sections">
         <div ng-repeat="section in sections">
             <h2>{{section.title}}</h2>
-
             <div class="helper" ng-if="guideHelpers.currentSectionId === section.id">
                 <div>
                     current item: {{section.values.current.title}}
@@ -49,16 +52,25 @@
                 <a href="" ng-click="section.rollUp()">Next Item</A>
                 <a href="" ng-click="nextSection()" ng-if="section.nextBoxTitle">GO TO {{section.nextBoxTitle}}</A>
             </div>
+
+            <div class="placeholder" ng-if="guideHelpers.currentSectionId !== section.id">
+                <ul ng-if="section.hasStickies">
+                    <li ng-repeat="sticky in section.stickies">{{sticky.title}}</li>
+                </ul>
+                <div ng-if="!section.hasStickies">no stickies</div>
+            </div>
+
         </div>
     </div>
 
     <button ng-click="addSection()">add Section</button>
-</div>
+    <button ng-click="nextSectionTest()">nextSectionTest</button>
 
-<script src='config.js'></script>
 
-<script>
-    System.import('main2');
-</script>
+    <script src='config.js'></script>
+
+    <script>
+        System.import('main2');
+    </script>
 </body>
 </html>

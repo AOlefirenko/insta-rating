@@ -9,11 +9,12 @@ angular.element(document).ready(function () {
 });
 
 
-function getItems(count) {
+function getItems(count, boxId) {
     return Rx.Observable.range(1, count).
         map((x)=> {
-            return {id: x, title: 'item ' + x};
-        });
+
+            return {id: x, title: 'item ' + x, boxId: boxId};
+        })
 }
 
 var i = 2;
@@ -37,6 +38,7 @@ class RolledHelper {
 
         var groups = this.makePairs(config.stickies);
 
+
         this._subscriptions = [];
 
         this.currentItemId = config.currentStickyId;
@@ -44,7 +46,7 @@ class RolledHelper {
         this.positionObservable = config.rolledUpObservable;
 
         this.activate = function () {
-            console.log('activate helper');
+            console.log('activate helper', groups);
             this.init(groups);
         }
     }
@@ -66,7 +68,7 @@ class RolledHelper {
         observable.take(1).subscribe(this.setCurrentValues.bind(this));
     }
 
-    initRolling(observable) {
+    initRolling(observable, allGroups) {
         var self = this;
         var onRollUp = Rx.Observable.create(function (observer) {
             self.rollUp = observer.onNext.bind(observer);
@@ -82,7 +84,7 @@ class RolledHelper {
                 onRollUp = null;
                 obs = null;
                 observable = null;
-                self.init(groups, true)
+                self.init(allGroups, true)
             })
     }
 
@@ -93,14 +95,14 @@ class RolledHelper {
         var publishedGroups = this.setStartPosition(groups, startPosition).publish();
 
         this.setInitValues(publishedGroups);
-        this.initRolling(publishedGroups);
+        this.initRolling(publishedGroups, groups);
 
         publishedGroups.connect();
     }
 
 }
 
-class RolledHelperGroup {
+class RolledHelpersGroup {
     constructor(sections, onNext, stickies, state) {
         this.sections = this.makePairs(sections).
             map(this.transformToHelper.bind(this));
@@ -130,16 +132,19 @@ class RolledHelperGroup {
 
         var positionObservable = new Rx.Subject();
         this.rolledUpObservable = new Rx.Subject();
+
         this.createSubscription(this.guideObservable, (x)=> {
             this.prevSectionId = this.currentSectionId;
             this.currentSectionId = x.id;
+
             x.activate();
 
             positionObservable.onNext({
                 current: this.currentSectionId,
                 completed: this.prevSectionId
             });
-        })
+        });
+
         this.positionObservable = positionObservable;
 
         publishedSections.connect();
@@ -154,7 +159,6 @@ class RolledHelperGroup {
     }
 
     transformToHelper(x) {
-        //console.log('transformToHelper', x);
         var stickies = this.stickiesDict[x.current];
         var subject = this.rolledUpObservable;
         var currentItemId = this.state.getCurrentItem(x.current);
@@ -190,16 +194,16 @@ class RolledHelperGroup {
 
 app.controller('AppController', ($scope, rx, $window)=> {
     var sections = ['first', 'second', 'third'];
-    var newSections = ['sixth', 'fifth', 'fourth'];
+    var newSections = ['fourth', 'fifth', 'sixth'];
     var onNextBoxObservable = $scope.$createObservableFunction('nextSection');
 
     var stickiesDict = {
-        'first': getItems(9),
-        'second': getItems(5),
-        'third': getItems(6),
-        'fourth': getItems(2),
-        'fifth': getItems(0),
-        'sixth': getItems(0)
+        'first': getItems(9, 'first'),
+        'second': getItems(0, 'second'),
+        'third': getItems(6, 'third'),
+        'fourth': getItems(2, 'fourth'),
+        'fifth': getItems(0, 'fifth'),
+        'sixth': getItems(1, 'sixth')
     }
 
     var rolledGuideState = {
@@ -209,10 +213,12 @@ app.controller('AppController', ($scope, rx, $window)=> {
         boxes: {
             first: {
                 isDirty: true,
+                resumed:false,
                 currentItemId: 1
             },
             second: {
                 isDirty: false,
+                resumed:false,
                 currentItemId: 1
             }
         },
@@ -229,6 +235,77 @@ app.controller('AppController', ($scope, rx, $window)=> {
         }
     };
 
+//////////////////////
+//////////////////////
+    function initObs(sections) {
+        var boxes = setHelperForEachBox(setItemsExistence(mapBoxes(sections)));
+
+        getAll(boxes, (x)=> {
+            console.log('all', x);
+        });
+        var nextSectionTest = $scope.$createObservableFunction('nextSectionTest');
+
+        listenOnNext(boxes, nextSectionTest).subscribe(function (x) {
+            console.log('next', x);
+        })
+
+
+        function mapBoxes(sections) {
+            return Rx.Observable.fromArray(sections).map((x)=> {
+                return {
+                    id: x,
+                    title: x,
+                    stickies: stickiesDict[x],
+                    onNextBoxObservable: new Rx.Subject()
+                }
+            });
+        }
+
+        function setItemsExistence(boxes) {
+            var hasItems = boxes.flatMap((x)=> {
+                return x.stickies.some();
+            });
+            return Rx.Observable.zip(boxes, hasItems, (s1, s2)=> {
+                s1.hasStickies = s2;
+                return s1;
+            });
+        }
+
+        function setHelperForEachBox(boxes) {
+            return makePairs(boxes.concat(Rx.Observable.fromArray([null]))).map((x)=> {
+                var config = {
+                    boxId: x.current.id,
+                    nextBoxTitle: x.next && x.next.title,
+                    stickies: x.current.stickies,
+                    currentStickyId: 0,
+                    rolledUpObservable: new Rx.Subject()
+                };
+                x.current.helper = new RolledHelper(config);
+                return x.current;
+            })
+        }
+
+        function getAll(boxes, cb) {
+            boxes.map((x)=> {
+                x.stickies.toArray().subscribe((items)=> {
+                    x.stickies = items;
+                })
+                return x;
+            }).toArray().subscribe(cb);
+        }
+
+        function listenOnNext(boxes, OnNext) {
+            return Rx.Observable.zip(boxes.where((x)=>x.hasStickies), OnNext, (s1, s2)=>s1);
+        }
+    }
+
+
+    initObs(sections);
+
+
+//////////////////////
+//////////////////////
+
     var currentId;
     init(sections);
 
@@ -237,7 +314,7 @@ app.controller('AppController', ($scope, rx, $window)=> {
 
         if ($scope.guideHelpers) $scope.guideHelpers.dispose();
 
-        var guideHelpers = new RolledHelperGroup(boxesObservable, onNextBoxObservable, stickiesDict, rolledGuideState);
+        var guideHelpers = new RolledHelpersGroup(boxesObservable, onNextBoxObservable, stickiesDict, rolledGuideState);
         $scope.guideHelpers = guideHelpers;
 
         $scope.sections = guideHelpers.allBoxes;
